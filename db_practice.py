@@ -1,35 +1,53 @@
+from fastapi import FastAPI
+from pydantic import BaseModel
 import sqlite3
 from text_utils import clean_text, split_words, count_words, top_n_words
 
-conn = sqlite3.connect("analysis.db")
-cursor = conn.cursor()
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS analysis_log (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    input_text TEXT,
-    top_word TEXT,
-    top_count INTEGER
-)
-""")
+app = FastAPI()
 
-text = input("확인할 문장을 입력하세요: ")
-cleaned = clean_text(text)
-words = split_words(cleaned)
-counts = count_words(words)
-top_words = top_n_words(counts, n=1)
-word, count = top_words[0]
+def init_db():
+    conn = sqlite3.connect("analysis.db")
+    cursor = conn.cursor()
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS analysis_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        input_text TEXT,
+        top_word TEXT,
+        top_count INTEGER
+    )
+    """)
+    conn.commit()
+    conn.close()
 
-cursor.execute(
-    "INSERT INTO analysis_log (input_text, top_word, top_count) VALUES (?, ?, ?)",
-    (text, word, count)
-)
-conn.commit()
+init_db()
 
-cursor.execute("SELECT * FROM analysis_log")
-rows = cursor.fetchall()
+class TextInput(BaseModel):
+    text: str
 
-print("\n저장된 기록들:")
-for row in rows:
-    print(row)
+@app.post("/analyze")
+def analyze(input: TextInput):
+    cleaned = clean_text(input.text)
+    words = split_words(cleaned)
+    counts = count_words(words)
+    top_words = top_n_words(counts, n=1)
+    word, count = top_words[0]
 
-conn.close()
+    conn = sqlite3.connect("analysis.db")
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO analysis_log (input_text, top_word, top_count) VALUES (?, ?, ?)",
+        (input.text, word, count)
+    )
+    conn.commit()
+    conn.close()
+
+    return {"input_text": input.text, "top_word": word, "top_count": count}
+
+@app.get("/results")
+def get_results():
+    conn = sqlite3.connect("analysis.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM analysis_log")
+    rows = cursor.fetchall()
+    conn.close()
+    return {"results": rows}
