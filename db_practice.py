@@ -5,6 +5,18 @@ from text_utils import clean_text, split_words, count_words, top_n_words
 
 app = FastAPI()
 
+from fastapi.middleware.cors import CORSMiddleware
+
+app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], 
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 def init_db():
     conn = sqlite3.connect("analysis.db")
     cursor = conn.cursor()
